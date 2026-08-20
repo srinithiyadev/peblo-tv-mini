@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: peblo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: peblo
+      POSTGRES_USER: peblo
+      POSTGRES_PASSWORD: peblo_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
