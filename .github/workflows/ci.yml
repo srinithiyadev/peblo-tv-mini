@@ -1,0 +1,70 @@
+name: Peblo TV CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check backend imports
+        working-directory: backend
+        run: |
+          python -c "from app.main import app; print('Backend import OK')"
+
+      - name: Install Admin dependencies
+        working-directory: admin
+        run: npm ci
+
+      - name: Lint Admin
+        working-directory: admin
+        run: npm run lint
+
+      - name: Build Admin
+        working-directory: admin
+        run: npm run build
+
+      - name: Install Viewer dependencies
+        working-directory: viewer
+        run: npm ci
+
+      - name: Lint Viewer
+        working-directory: viewer
+        run: npm run lint
+
+      - name: Build Viewer
+        working-directory: viewer
+        run: npm run build
+
+      - name: Build Docker images
+        run: docker compose build
+
+  deploy:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deployment step
+        run: |
+          echo "Deployment step documented."
+          echo "Production deployment can be connected here."
