@@ -12,5 +12,37 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  backend:
+    build:
+      context: ./backend
+    container_name: peblo-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://peblo:peblo_password@postgres:5432/peblo
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+
+  admin:
+    build:
+      context: ./admin
+    container_name: peblo-admin
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  viewer:
+    build:
+      context: ./viewer
+    container_name: peblo-viewer
+    restart: unless-stopped
+    ports:
+      - "5174:80"
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
