@@ -203,11 +203,11 @@ function App() {
 
 
 function EpisodeCard({ episode }) {
-  const poster = episode.artwork?.poster;
+  const poster =
+  episode.artwork?.poster ||
+  "/uploads/default-poster.jpg";
 
-  const imageUrl = poster
-    ? `${API}${poster}`
-    : null;
+const imageUrl = `${API}${poster}`;  
 
   return (
     <article className="card">
