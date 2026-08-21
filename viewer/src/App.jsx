@@ -1,297 +1,390 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import "./App.css";
 
 const API = "http://127.0.0.1:8000";
 
 function App() {
-  const [catalogue, setCatalogue] = useState(null);
+  const [episodes, setEpisodes] = useState([]);
   const [search, setSearch] = useState("");
-  const [language, setLanguage] = useState("");
-  const [category, setCategory] = useState("");
   const [section, setSection] = useState("");
+  const [language, setLanguage] = useState("");
+  const [status, setStatus] = useState("");
+  const [report, setReport] = useState(null);
+  const [publishMessage, setPublishMessage] = useState("");
+  const [publishRuns, setPublishRuns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  const loadEpisodes = async () => {
+    try {
+      setLoading(true);
+
+      const response = await axios.get(`${API}/admin/episodes`);
+
+      const data = response.data;
+
+      setEpisodes(Array.isArray(data) ? data : data.items || []);
+    } catch (error) {
+      console.error("Failed to load episodes:", error);
+      setEpisodes([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadValidation = async () => {
+    try {
+      const response = await axios.get(
+        `${API}/admin/validation-report`
+      );
+
+      setReport(response.data);
+    } catch (error) {
+      console.error("Failed to load validation report:", error);
+    }
+  };
+
+  const loadPublishRuns = async () => {
+    try {
+      const response = await axios.get(
+        `${API}/admin/publish-runs`
+      );
+
+      const data = response.data;
+
+      setPublishRuns(
+        Array.isArray(data) ? data : data.items || []
+      );
+    } catch (error) {
+      console.error(
+        "Failed to load publish history:",
+        error
+      );
+
+      setPublishRuns([]);
+    }
+  };
+
+  const publishCatalogue = async () => {
+    try {
+      setPublishMessage("");
+
+      const response = await axios.post(
+        `${API}/admin/publish`
+      );
+
+      setPublishMessage(
+        `Published successfully: ${response.data.episodes_count} episodes`
+      );
+
+      await loadValidation();
+      await loadPublishRuns();
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+
+      if (detail?.issues) {
+        setPublishMessage(
+          `Publish blocked: ${detail.issues.join(", ")}`
+        );
+      } else {
+        setPublishMessage("Publish failed.");
+      }
+    }
+  };
 
   useEffect(() => {
-    axios
-      .get(`${API}/catalog`)
-      .then((response) => {
-        setCatalogue(response.data);
-      })
-      .catch((err) => {
-        console.error(err);
-        setError("Unable to load catalogue.");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    loadEpisodes();
+    loadValidation();
+    loadPublishRuns();
   }, []);
 
-  const episodes = catalogue?.episodes || [];
+  const filteredEpisodes = episodes.filter((episode) => {
+    const matchesSearch =
+      !search ||
+      String(episode.episode_id || "")
+        .toLowerCase()
+        .includes(search.toLowerCase()) ||
+      String(episode.title || "")
+        .toLowerCase()
+        .includes(search.toLowerCase());
 
-  const sections = useMemo(() => {
-    return [...new Set(
-      episodes
-        .map((episode) => episode.section)
-        .filter(Boolean)
-    )];
-  }, [episodes]);
+    const matchesSection =
+      !section || episode.section === section;
 
-  const categories = useMemo(() => {
-    return [...new Set(
-      episodes.flatMap(
-        (episode) => episode.categories || []
-      )
-    )].sort();
-  }, [episodes]);
+    const matchesLanguage =
+      !language || episode.language === language;
 
-  const filteredEpisodes = useMemo(() => {
-    return episodes.filter((episode) => {
-      const searchText = search.trim().toLowerCase();
+    const matchesStatus =
+      !status || episode.status === status;
 
-      const matchesSearch =
-        !searchText ||
-        episode.show_title?.toLowerCase().includes(searchText) ||
-        episode.title?.toLowerCase().includes(searchText) ||
-        episode.content_group?.toLowerCase().includes(searchText) ||
-        episode.categories?.some((cat) =>
-          cat.toLowerCase().includes(searchText)
-        );
-
-      const matchesLanguage =
-        !language ||
-        episode.language === language;
-
-      const matchesCategory =
-        !category ||
-        episode.categories?.includes(category);
-
-      const matchesSection =
-        !section ||
-        episode.section === section;
-
-      return (
-        matchesSearch &&
-        matchesLanguage &&
-        matchesCategory &&
-        matchesSection
-      );
-    });
-  }, [
-    episodes,
-    search,
-    language,
-    category,
-    section,
-  ]);
-
-  if (loading) {
     return (
-      <div className="loading">
-        Loading Peblo TV...
-      </div>
+      matchesSearch &&
+      matchesSection &&
+      matchesLanguage &&
+      matchesStatus
     );
-  }
-
-  if (error) {
-    return (
-      <div className="error">
-        {error}
-      </div>
-    );
-  }
+  });
 
   return (
-    <div className="viewer">
-      <header className="hero">
-        <div className="hero-content">
-          <h1>Peblo TV</h1>
-          <p>
-            Stories, songs and learning for curious kids.
-          </p>
+    <div className="app">
+      <header className="header">
+        <div>
+          <h1>Peblo TV Admin</h1>
+          <p>Editorial Content Management</p>
         </div>
+
+        <button
+          className="publish-button"
+          onClick={publishCatalogue}
+        >
+          Publish Catalogue
+        </button>
       </header>
 
-      <div className="toolbar">
+      {publishMessage && (
+        <div className="message">
+          {publishMessage}
+        </div>
+      )}
+
+      <section className="validation-card">
+        <div>
+          <h2>Validation Report</h2>
+
+          {report ? (
+            <p>
+              {report.valid
+                ? "✓ Catalogue is valid"
+                : `⚠ ${report.issue_count} issue(s) found`}
+            </p>
+          ) : (
+            <p>Checking validation...</p>
+          )}
+        </div>
+
+        {!report?.valid &&
+          report?.issues?.length > 0 && (
+            <div className="issues">
+              {report.issues
+                .slice(0, 5)
+                .map((issue, index) => (
+                  <div key={index}>
+                    {issue.message}
+                  </div>
+                ))}
+            </div>
+          )}
+      </section>
+
+      <section className="history-card">
+        <div className="content-header">
+          <h2>Publish History</h2>
+
+          <span>
+            {publishRuns.length}{" "}
+            {publishRuns.length === 1
+              ? "run"
+              : "runs"}
+          </span>
+        </div>
+
+        {publishRuns.length === 0 ? (
+          <div className="empty">
+            No publish runs yet.
+          </div>
+        ) : (
+          <div className="history-list">
+            {publishRuns.map((run) => (
+              <div
+                className="history-item"
+                key={run.id}
+              >
+                <div>
+                  <strong>
+                    {run.outcome || "Completed"}
+                  </strong>
+
+                  <p>
+                    {run.started_at
+                      ? new Date(
+                          run.started_at
+                        ).toLocaleString()
+                      : "-"}
+                  </p>
+                </div>
+
+                <div className="history-stats">
+                  <span>
+                    {run.shows_count ?? 0} shows
+                  </span>
+
+                  <span>
+                    {run.episodes_count ?? 0} episodes
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="filters">
         <input
           type="text"
-          placeholder="Search shows, episodes or categories..."
+          placeholder="Search episode..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) =>
+            setSearch(e.target.value)
+          }
         />
 
         <select
           value={section}
-          onChange={(e) => setSection(e.target.value)}
+          onChange={(e) =>
+            setSection(e.target.value)
+          }
         >
-          <option value="">All sections</option>
+          <option value="">
+            All sections
+          </option>
 
-          {sections.map((item) => (
-            <option key={item} value={item}>
-              {formatLabel(item)}
-            </option>
-          ))}
+          <option value="featured">
+            Featured
+          </option>
+
+          <option value="series">
+            Series
+          </option>
+
+          <option value="minisodes">
+            Minisodes
+          </option>
+
+          <option value="songs">
+            Songs
+          </option>
         </select>
 
         <select
           value={language}
-          onChange={(e) => setLanguage(e.target.value)}
+          onChange={(e) =>
+            setLanguage(e.target.value)
+          }
         >
-          <option value="">All languages</option>
-          <option value="en">English</option>
-          <option value="hi">Hindi</option>
+          <option value="">
+            All languages
+          </option>
+
+          <option value="en">
+            English
+          </option>
+
+          <option value="hi">
+            Hindi
+          </option>
         </select>
 
         <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
+          value={status}
+          onChange={(e) =>
+            setStatus(e.target.value)
+          }
         >
-          <option value="">All categories</option>
+          <option value="">
+            All statuses
+          </option>
 
-          {categories.map((item) => (
-            <option key={item} value={item}>
-              {formatLabel(item)}
-            </option>
-          ))}
+          <option value="draft">
+            Draft
+          </option>
+
+          <option value="published">
+            Published
+          </option>
         </select>
-      </div>
+      </section>
 
-      <main>
-        <div className="results-header">
-          <h2>
-            {search || language || category || section
-              ? "Search Results"
-              : "Explore Peblo TV"}
-          </h2>
+      <section className="content">
+        <div className="content-header">
+          <h2>Episodes</h2>
 
           <span>
             {filteredEpisodes.length} episodes
           </span>
         </div>
 
-        {filteredEpisodes.length === 0 ? (
+        {loading ? (
           <div className="empty">
-            <h3>No episodes found</h3>
-            <p>
-              Try changing your search or filters.
-            </p>
+            Loading episodes...
+          </div>
+        ) : filteredEpisodes.length === 0 ? (
+          <div className="empty">
+            No episodes found.
           </div>
         ) : (
-          <div className="grid">
-            {filteredEpisodes.map((episode) => (
-              <EpisodeCard
-                key={episode.episode_id}
-                episode={episode}
-              />
-            ))}
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Episode ID</th>
+                  <th>Title</th>
+                  <th>Language</th>
+                  <th>Status</th>
+                  <th>Duration</th>
+                  <th>Content Group</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredEpisodes.map(
+                  (episode) => (
+                    <tr
+                      key={
+                        episode.id ||
+                        episode.episode_id
+                      }
+                    >
+                      <td>
+                        {episode.episode_id}
+                      </td>
+
+                      <td>
+                        {episode.title}
+                      </td>
+
+                      <td>
+                        <span className="language">
+                          {episode.language}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span
+                          className={`status ${episode.status}`}
+                        >
+                          {episode.status}
+                        </span>
+                      </td>
+
+                      <td>
+                        {episode.duration_seconds
+                          ? `${episode.duration_seconds}s`
+                          : "-"}
+                      </td>
+
+                      <td>
+                        {episode.content_group}
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
           </div>
         )}
-      </main>
-
-      <footer>
-        <span>Peblo TV Catalogue</span>
-
-        <span>
-          Generated:{" "}
-          {catalogue?.generated_at || "Unknown"}
-        </span>
-      </footer>
+      </section>
     </div>
   );
 }
-
-
-function EpisodeCard({ episode }) {
-  const poster =
-  episode.artwork?.poster ||
-  "/uploads/default-poster.jpg";
-
-const imageUrl = `${API}${poster}`;  
-
-  return (
-    <article className="card">
-      <div className="card-image">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={episode.title}
-            onError={(event) => {
-              event.currentTarget.style.display = "none";
-            }}
-          />
-        ) : (
-          <div className="placeholder">
-            <span>Peblo TV</span>
-          </div>
-        )}
-      </div>
-
-      <div className="card-body">
-        <div className="section-label">
-          {formatLabel(episode.section)}
-        </div>
-
-        <h3>{episode.title}</h3>
-
-        <p className="show-title">
-          {episode.show_title}
-        </p>
-
-        <div className="meta-row">
-          <span>
-            Episode {episode.episode_number}
-          </span>
-
-          <span>
-            {formatDuration(episode.duration_seconds)}
-          </span>
-
-          <span>
-            {episode.language?.toUpperCase()}
-          </span>
-        </div>
-
-        <div className="tags">
-          {(episode.categories || []).map((category) => (
-            <span key={category}>
-              {category}
-            </span>
-          ))}
-        </div>
-      </div>
-    </article>
-  );
-}
-
-
-function formatLabel(value) {
-  if (!value) {
-    return "";
-  }
-
-  return value
-    .replace(/[-_]/g, " ")
-    .replace(/\b\w/g, (letter) =>
-      letter.toUpperCase()
-    );
-}
-
-
-function formatDuration(seconds) {
-  if (!seconds) {
-    return "0m";
-  }
-
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-
-  if (remainingSeconds === 0) {
-    return `${minutes}m`;
-  }
-
-  return `${minutes}m ${remainingSeconds}s`;
-}
-
 
 export default App;
