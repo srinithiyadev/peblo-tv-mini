@@ -38,34 +38,31 @@ def search_catalog(
     data = _load()
     results = []
 
-    for sec_name, entries in data["sections"].items():
-        if section and sec_name != section:
+    for entry in data["episodes"]:
+        if section and entry.get("section") != section:
             continue
 
-        for entry in entries:
-            if category and category not in entry["categories"]:
+        if category and category not in entry.get("categories", []):
+            continue
+
+        if language and language != entry.get("language"):
+            continue
+
+        if q:
+            q_lower = q.lower()
+
+            haystack = (
+                entry.get("show_title", "").lower()
+                + " "
+                + entry.get("title", "").lower()
+                + " "
+                + " ".join(entry.get("categories", [])).lower()
+            )
+
+            if q_lower not in haystack:
                 continue
 
-            if language and language not in {
-                lang["language"] for lang in entry["languages"]
-            }:
-                continue
-
-            if q:
-                q_lower = q.lower()
-
-                haystack = (
-                    entry["show_title"].lower()
-                    + " "
-                    + entry["title"].lower()
-                    + " "
-                    + " ".join(entry["categories"]).lower()
-                )
-
-                if q_lower not in haystack:
-                    continue
-
-            results.append(entry)
+        results.append(entry)
 
     return {
         "count": len(results),
