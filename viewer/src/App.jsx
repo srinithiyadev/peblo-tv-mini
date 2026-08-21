@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import "./App.css";
 
@@ -9,6 +9,7 @@ function App() {
   const [search, setSearch] = useState("");
   const [language, setLanguage] = useState("");
   const [category, setCategory] = useState("");
+  const [section, setSection] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -27,58 +28,111 @@ function App() {
       });
   }, []);
 
+  const episodes = catalogue?.episodes || [];
+
+  const sections = useMemo(() => {
+    return [...new Set(
+      episodes
+        .map((episode) => episode.section)
+        .filter(Boolean)
+    )];
+  }, [episodes]);
+
+  const categories = useMemo(() => {
+    return [...new Set(
+      episodes.flatMap(
+        (episode) => episode.categories || []
+      )
+    )].sort();
+  }, [episodes]);
+
+  const filteredEpisodes = useMemo(() => {
+    return episodes.filter((episode) => {
+      const searchText = search.trim().toLowerCase();
+
+      const matchesSearch =
+        !searchText ||
+        episode.show_title?.toLowerCase().includes(searchText) ||
+        episode.title?.toLowerCase().includes(searchText) ||
+        episode.content_group?.toLowerCase().includes(searchText) ||
+        episode.categories?.some((cat) =>
+          cat.toLowerCase().includes(searchText)
+        );
+
+      const matchesLanguage =
+        !language ||
+        episode.language === language;
+
+      const matchesCategory =
+        !category ||
+        episode.categories?.includes(category);
+
+      const matchesSection =
+        !section ||
+        episode.section === section;
+
+      return (
+        matchesSearch &&
+        matchesLanguage &&
+        matchesCategory &&
+        matchesSection
+      );
+    });
+  }, [
+    episodes,
+    search,
+    language,
+    category,
+    section,
+  ]);
+
   if (loading) {
-    return <div className="loading">Loading Peblo TV...</div>;
+    return (
+      <div className="loading">
+        Loading Peblo TV...
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="error">{error}</div>;
-  }
-
-  const sections = catalogue?.sections || {};
-
-  const allEpisodes = Object.values(sections).flat();
-
-  const filteredEpisodes = allEpisodes.filter((item) => {
-    const matchesSearch =
-      !search ||
-      item.show_title?.toLowerCase().includes(search.toLowerCase()) ||
-      item.title?.toLowerCase().includes(search.toLowerCase()) ||
-      item.content_group?.toLowerCase().includes(search.toLowerCase());
-
-    const matchesCategory =
-      !category ||
-      item.categories?.includes(category);
-
-    const matchesLanguage =
-      !language ||
-      item.languages?.some(
-        (lang) => lang.language === language
-      );
-
     return (
-      matchesSearch &&
-      matchesCategory &&
-      matchesLanguage
+      <div className="error">
+        {error}
+      </div>
     );
-  });
+  }
 
   return (
     <div className="viewer">
       <header className="hero">
         <div className="hero-content">
           <h1>Peblo TV</h1>
-          <p>Stories, songs and learning for curious kids.</p>
+          <p>
+            Stories, songs and learning for curious kids.
+          </p>
         </div>
       </header>
 
-      <nav className="toolbar">
+      <div className="toolbar">
         <input
           type="text"
-          placeholder="Search shows and episodes..."
+          placeholder="Search shows, episodes or categories..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+
+        <select
+          value={section}
+          onChange={(e) => setSection(e.target.value)}
+        >
+          <option value="">All sections</option>
+
+          {sections.map((item) => (
+            <option key={item} value={item}>
+              {formatLabel(item)}
+            </option>
+          ))}
+        </select>
 
         <select
           value={language}
@@ -94,111 +148,150 @@ function App() {
           onChange={(e) => setCategory(e.target.value)}
         >
           <option value="">All categories</option>
-          <option value="stories">Stories</option>
-          <option value="values">Values</option>
-          <option value="folk">Folk</option>
-          <option value="songs">Songs</option>
-          <option value="learning">Learning</option>
+
+          {categories.map((item) => (
+            <option key={item} value={item}>
+              {formatLabel(item)}
+            </option>
+          ))}
         </select>
-      </nav>
+      </div>
 
       <main>
-        {search || language || category ? (
-          <section>
-            <h2>Search Results</h2>
+        <div className="results-header">
+          <h2>
+            {search || language || category || section
+              ? "Search Results"
+              : "Explore Peblo TV"}
+          </h2>
 
-            <div className="grid">
-              {filteredEpisodes.map((item) => (
-                <EpisodeCard
-                  key={item.content_group}
-                  item={item}
-                />
-              ))}
-            </div>
+          <span>
+            {filteredEpisodes.length} episodes
+          </span>
+        </div>
 
-            {filteredEpisodes.length === 0 && (
-              <p className="empty">No results found.</p>
-            )}
-          </section>
+        {filteredEpisodes.length === 0 ? (
+          <div className="empty">
+            <h3>No episodes found</h3>
+            <p>
+              Try changing your search or filters.
+            </p>
+          </div>
         ) : (
-          Object.entries(sections).map(
-            ([sectionName, entries]) => (
-              <section key={sectionName}>
-                <div className="section-heading">
-                  <h2>
-                    {sectionName.charAt(0).toUpperCase() +
-                      sectionName.slice(1)}
-                  </h2>
-                </div>
-
-                <div className="grid">
-                  {entries.map((item) => (
-                    <EpisodeCard
-                      key={item.content_group}
-                      item={item}
-                    />
-                  ))}
-                </div>
-              </section>
-            )
-          )
+          <div className="grid">
+            {filteredEpisodes.map((episode) => (
+              <EpisodeCard
+                key={episode.episode_id}
+                episode={episode}
+              />
+            ))}
+          </div>
         )}
       </main>
 
       <footer>
-        <p>Peblo TV Catalogue</p>
-        <p>
-          Generated: {catalogue?.generated_at || "Unknown"}
-        </p>
+        <span>Peblo TV Catalogue</span>
+
+        <span>
+          Generated:{" "}
+          {catalogue?.generated_at || "Unknown"}
+        </span>
       </footer>
     </div>
   );
 }
 
-function EpisodeCard({ item }) {
-  const languages =
-    item.languages
-      ?.map((lang) => lang.language)
-      .join(" / ") || "Unknown";
+
+function EpisodeCard({ episode }) {
+  const poster = episode.artwork?.poster;
+
+  const imageUrl = poster
+    ? `${API}${poster}`
+    : null;
 
   return (
     <article className="card">
       <div className="card-image">
-        {item.artwork?.poster ? (
+        {imageUrl ? (
           <img
-            src={`http://127.0.0.1:8000/${item.artwork.poster}`}
-            alt={item.title}
+            src={imageUrl}
+            alt={episode.title}
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
           />
         ) : (
           <div className="placeholder">
-            Peblo TV
+            <span>Peblo TV</span>
           </div>
         )}
       </div>
 
       <div className="card-body">
-        <h3>{item.title}</h3>
+        <div className="section-label">
+          {formatLabel(episode.section)}
+        </div>
+
+        <h3>{episode.title}</h3>
 
         <p className="show-title">
-          {item.show_title}
+          {episode.show_title}
         </p>
 
-        <p className="meta">
-          Episode {item.episode_number}
-        </p>
+        <div className="meta-row">
+          <span>
+            Episode {episode.episode_number}
+          </span>
 
-        <p className="meta">
-          Languages: {languages}
-        </p>
+          <span>
+            {formatDuration(episode.duration_seconds)}
+          </span>
+
+          <span>
+            {episode.language?.toUpperCase()}
+          </span>
+        </div>
 
         <div className="tags">
-          {item.categories?.map((cat) => (
-            <span key={cat}>{cat}</span>
+          {(episode.categories || []).map((category) => (
+            <span key={category}>
+              {category}
+            </span>
           ))}
         </div>
       </div>
     </article>
   );
 }
+
+
+function formatLabel(value) {
+  if (!value) {
+    return "";
+  }
+
+  return value
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (letter) =>
+      letter.toUpperCase()
+    );
+}
+
+
+function formatDuration(seconds) {
+  if (!seconds) {
+    return "0m";
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (remainingSeconds === 0) {
+    return `${minutes}m`;
+  }
+
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
 
 export default App;

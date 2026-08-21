@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.routers.admin import router as admin_router
 from app.routers.shows import router as shows_router
@@ -15,8 +16,15 @@ app = FastAPI(
 )
 
 
-# Allow the React Admin and Viewer applications
-# to communicate with the FastAPI backend.
+# Serve uploaded artwork/images
+app.mount(
+    "/uploads",
+    StaticFiles(directory="uploads"),
+    name="uploads",
+)
+
+
+# Allow Admin and Viewer React applications
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -24,6 +32,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:5174",
         "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -31,6 +41,7 @@ app.add_middleware(
 )
 
 
+# API routers
 app.include_router(admin_router)
 app.include_router(shows_router)
 app.include_router(episodes_router)

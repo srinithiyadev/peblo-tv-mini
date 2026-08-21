@@ -93,9 +93,11 @@ def publish_catalogue(
         )
 
         artworks = {
-            artwork.artwork_type: artwork.file_path
-            for artwork in episode.artworks
-        }
+    artwork.artwork_type: (
+        "/uploads/" + Path(artwork.file_path).name
+    )
+    for artwork in episode.artworks
+}
 
         catalogue.append({
             "show_id": show.id,
