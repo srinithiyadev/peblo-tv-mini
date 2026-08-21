@@ -158,3 +158,25 @@ def publish_catalogue(
         "episodes_count": len(catalogue),
         "catalogue_file": str(CATALOGUE_FILE),
     }
+@router.get("/publish-runs")
+def get_publish_runs(
+    db: Session = Depends(get_db),
+):
+    runs = (
+        db.query(PublishRun)
+        .order_by(PublishRun.started_at.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": run.id,
+            "user": run.user,
+            "started_at": run.started_at,
+            "completed_at": run.completed_at,
+            "shows_count": run.shows_count,
+            "episodes_count": run.episodes_count,
+            "outcome": run.outcome,
+        }
+        for run in runs
+    ]
